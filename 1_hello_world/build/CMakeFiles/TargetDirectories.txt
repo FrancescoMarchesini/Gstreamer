@@ -1,0 +1,11 @@
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/CMakeFiles/edit_cache.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/CMakeFiles/rebuild_cache.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/hello_world/CMakeFiles/rebuild_cache.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/hello_world/CMakeFiles/edit_cache.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/hello_world/CMakeFiles/hello_world.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/concepts/CMakeFiles/rebuild_cache.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/concepts/CMakeFiles/edit_cache.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/concepts/CMakeFiles/concepts.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/dynamic_pipeline/CMakeFiles/edit_cache.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/dynamic_pipeline/CMakeFiles/rebuild_cache.dir
+/home/nvidia/Desktop/Gstreamer/1_hello_world/build/App/dynamic_pipeline/CMakeFiles/dynamic_pipeline.dir
