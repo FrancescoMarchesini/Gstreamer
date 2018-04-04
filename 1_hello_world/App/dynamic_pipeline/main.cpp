@@ -2,10 +2,11 @@
 
 int main(int argc, char *argv[])
 {
-    GstElement *pipeline, *source, *sink, *filter, *videoconverter;
+    GstElement *pipeline, *source, *filter, *videoconverter, *testo, *sink;
     GstBus *bus;
     GstMessage *msg;
     GstStateChangeReturn ret;
+    GstCaps *video_caps;
 
     /*init gst*/
     //inizializzzazione di tutte le strutture interne
@@ -21,6 +22,8 @@ int main(int argc, char *argv[])
     //               del player è fatta in automatico da gstreamer
     source = gst_element_factory_make("videotestsrc", "source");
     filter = gst_element_factory_make("vertigotv", "vertigo");
+    testo = gst_element_factory_make("capsfilter", "testo");
+    g_assert(testo != NULL);
     videoconverter = gst_element_factory_make("nvvidconv", "conv"); //This element converts from one color space (e.g. RGB) to another one (e.g. YUV)
     sink = gst_element_factory_make("autovideosink", "sink");
 
@@ -34,24 +37,23 @@ int main(int argc, char *argv[])
 
     /*costruisco la pipeline*/
     //aggiungo tutti gli elmenti creati al contenitori BIN, il quale è un tipo di pipeline
-    gst_bin_add_many(GST_BIN(pipeline), source, filter, videoconverter, sink, NULL);
+    gst_bin_add_many(GST_BIN(pipeline), source, filter, videoconverter, testo, sink, NULL);
     //link degli elementi all'interno della pipeline
-    if(gst_element_link_many(source, filter, videoconverter, sink, NULL) != TRUE)
+    if(gst_element_link_many(source, filter, videoconverter,testo, sink, NULL) != TRUE)
     {
         g_printerr("NOn sono riuscito a linkare gli elementi");
         gst_object_unref(pipeline);
         return -1;
     }
 
+    video_caps = gst_caps_from_string("video/x-raw(memory:NVMM), format=(string)NV12");
+    g_object_set (G_OBJECT (testo), "caps", video_caps, NULL);
+    gst_caps_unref(video_caps);
+
     /*modifico le proprietà della sorgente*/
     //per leggere le proprietà g_object_get();
      g_object_set(source, "pattern", 0, NULL);
      //caps per il videoconverter
-
-    GstCaps *video_caps;
-    video_caps = gst_caps_from_string("video/x-raw(memory:NVMM), format=(string)NV12");
-    g_object_set (G_OBJECT (videoconverter), "caps", video_caps, NULL);
-    gst_caps_unref(video_caps);
 
     ret = gst_element_set_state(pipeline, GST_STATE_PLAYING);
     if(ret == GST_STATE_CHANGE_FAILURE)

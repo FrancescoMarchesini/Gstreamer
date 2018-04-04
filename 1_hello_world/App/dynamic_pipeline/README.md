@@ -1,4 +1,3 @@
-Concetti Principlai di gstream:
-creare una pipeline in manuale
+Creazione pipeline dinamica
 
-![Alt text](./figure-1.png?raw=true "Title")
+
