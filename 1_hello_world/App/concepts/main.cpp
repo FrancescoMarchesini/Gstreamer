@@ -2,7 +2,7 @@
 
 int main(int argc, char *argv[])
 {
-    GstElement *pipeline, *source, *filter, *videoconverter, *testo, *sink;
+    GstElement *pipeline, *source, *sink, *filter, *videoconverter;
     GstBus *bus;
     GstMessage *msg;
     GstStateChangeReturn ret;
@@ -32,28 +32,26 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    testo = gst_element_factory_make("capsfilter", "testo");
-    g_assert (testo != NULL); /* should always exist */
-
-
     /*costruisco la pipeline*/
     //aggiungo tutti gli elmenti creati al contenitori BIN, il quale è un tipo di pipeline
-    gst_bin_add_many(GST_BIN(pipeline), source, filter, videoconverter, testo, sink, NULL);
+    gst_bin_add_many(GST_BIN(pipeline), source, filter, videoconverter, sink, NULL);
     //link degli elementi all'interno della pipeline
-    if(gst_element_link_many(source, filter, videoconverter, testo, sink, NULL) != TRUE)
+    if(gst_element_link_many(source, filter, videoconverter, sink, NULL) != TRUE)
     {
         g_printerr("NOn sono riuscito a linkare gli elementi");
         gst_object_unref(pipeline);
         return -1;
     }
-    GstCaps *video_caps;
-    video_caps = gst_caps_from_string("video/x-raw(memory:NVMM), format=(string)NV12");
-    g_object_set (G_OBJECT (testo), "caps", video_caps, NULL);
-    gst_caps_unref(video_caps);
 
     /*modifico le proprietà della sorgente*/
     //per leggere le proprietà g_object_get();
      g_object_set(source, "pattern", 0, NULL);
+     //caps per il videoconverter
+
+    GstCaps *video_caps;
+    video_caps = gst_caps_from_string("video/x-raw(memory:NVMM), format=(string)NV12");
+    g_object_set (G_OBJECT (videoconverter), "caps", video_caps, NULL);
+    gst_caps_unref(video_caps);
 
     ret = gst_element_set_state(pipeline, GST_STATE_PLAYING);
     if(ret == GST_STATE_CHANGE_FAILURE)
