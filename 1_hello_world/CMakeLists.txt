@@ -71,5 +71,6 @@ endforeach()
 add_subdirectory(App/hello_world)
 add_subdirectory(App/concepts)
 add_subdirectory(App/dynamic_pipeline)
+add_subdirectory(App/playback)
 
 
