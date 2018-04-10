@@ -1,0 +1,3 @@
+Creazione classeper gestione pipeline
+
+
