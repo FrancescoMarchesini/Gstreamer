@@ -1,3 +1,0 @@
-Creazione pipeline dinamica
-
-
