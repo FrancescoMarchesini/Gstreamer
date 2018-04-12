@@ -5,6 +5,12 @@
 #include <unistd.h>
 #include <string.h>
 
+#include <inttypes.h>
+#include <cuda_runtime.h>
+#include <cuda.h>
+
+
+
 gstPipeline::~gstPipeline()
 {
     printf("%sDistruggo l'istanza gstPipeline\n", LOG_GST_PIPE_INFO);
@@ -30,6 +36,9 @@ gstPipeline::gstPipeline(std::string pipeline, uint32_t width, uint32_t height, 
     mWaitEvent = new QWaitCondition();
     mWaitMutex = new QMutex();
     mRingMutex = new QMutex();
+
+    mLatestRinbuffer = 0;
+    mLatestRetrived  = false;
 
     for( uint32_t n=0; n < NUM_RINGBUFFERS; n++)
     {
@@ -108,23 +117,24 @@ bool gstPipeline::Capture(void **cpu, void **cuda, unsigned long timeout)
 
     if(retrived)
     {
-        printf("-------------------------------------retived\n");
+        printf(LOG_GST_PIPE_INFO"retived\n");
         return false;
     }
 
     if(cpu != NULL)
     {
-        printf("-------------------------------------CPU ring buffer\n");
+        printf(LOG_GST_PIPE_INFO"CPU ring buffer\n");
         *cpu = mRingbufferCPU[latest];
     }
 
 
     if(cuda != NULL)
     {
-        printf("-------------------------------------CPU ring buffer\n");
+        printf(LOG_GST_PIPE_INFO"GPU ring buffer\n");
         *cuda = mRingbufferGPU[latest];
     }
 
+    printf("\n");
     return true;
 }
 
@@ -205,13 +215,43 @@ void gstPipeline::checkBuffer()
     mWidth  = width;
     mHeight = height;
     mDepth  = (gstSize * 8) / (width * height);
-    mSize   = gstSize;
+    mSize   =  gstSize;
 
     printf("%sla pipeline ha ricevuto %ix%i frame (%u bytes, %u bpp)\n", LOG_GST_PIPE_INFO, width, height, gstSize, mDepth);
 
-    /* 6 pulitura */
+    /* 6 qui tramite il puntatore all'immagine alloca la memoria della GPU o utilizzo i pixel */
+    if(!mRingbufferCPU[0])
+    {
+        for(uint32_t n=0; n < NUM_RINGBUFFERS; n++)
+        {
+            printf(LOG_GST_PIPE_INFO"buffer num : %d, indirizzo di memoria CPU: %p,  bytes : %u, valore: %u\n", n, (void*)&mRingbufferCPU[n], gstSize, (uint32_t*)mRingbufferCPU[n]);
+            printf(LOG_GST_PIPE_INFO"buffer num : %d, indirizzo di memoria GPU: %p,  bytes : %u, valore: %u\n", n, (void*)&mRingbufferGPU[n], gstSize, (uint32_t*)mRingbufferGPU[n]);
+            if(!&mRingbufferCPU || !mRingbufferGPU || gstSize == 0)
+                printf("MALE MALE MALE \n");
+
+              cudaHostAlloc(&mRingbufferCPU[n], (size_t)gstSize, cudaHostAllocMapped);
+              cudaHostGetDevicePointer(&mRingbufferGPU[n], mRingbufferCPU[n], 0);
+              memset(mRingbufferCPU[n], 0, (size_t)gstSize);
+              printf(LOG_GST_PIPE_INFO"cudaAllocMapped %zu bytes, CPU %p GPU %p\n", (size_t)gstSize, mRingbufferCPU, mRingbufferGPU);
+        }
+    }
+
+    /* 7 mi sposto nel buffer successivo */
+    const uint32_t nextRingBuffer = (mLatestRinbuffer + 1 ) % NUM_RINGBUFFERS;
+
+    printf(LOG_GST_PIPE_INFO"uso il ringbuffer #%u per il nuovo frame\n", nextRingBuffer);
+    memcpy(mRingbufferCPU[nextRingBuffer], gstData, gstSize);
+
+    /* 8 pulitura */
     gst_buffer_unmap(gstBuffer, &map);
     gst_sample_unref(gstSample);
+
+    /* 9 metto i segnali sui thread in modo da serializzarli corretamente */
+    mRingMutex->lock();
+    mLatestRinbuffer = nextRingBuffer;
+    mLatestRetrived = false;
+    mRingMutex->unlock();
+    mWaitEvent->wakeAll();
 }
 
 bool gstPipeline::buildLaunchString()

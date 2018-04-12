@@ -126,9 +126,10 @@ int main(int argc, char *argv[])
         if( !pipe->Capture(&imgCPU, &imgCuda, 1000))
         {
             printf("Figa, Figa, Figa\n");
+            printf("sizeof imgCPU %lu\n", sizeof(imgCPU));
+            printf("sizeof imgGPU %lu\n", sizeof(imgCuda));
         }
 
-        printf("sizeof imgCPU %lu\n", sizeof(imgCPU));
     }
 
     pipe->close();
