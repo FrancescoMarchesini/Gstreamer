@@ -9,6 +9,26 @@
 #include <cuda_runtime.h>
 #include <cuda.h>
 
+#include "cudaYUV.h"
+
+
+inline bool cudaAllocMapped( void** cpuPtr, void** gpuPtr, size_t size )
+{
+    if( !cpuPtr || !gpuPtr || size == 0 )
+        return false;
+
+    //CUDA(cudaSetDeviceFlags(cudaDeviceMapHost));
+
+    if( CUDA_FAILED(cudaHostAlloc(cpuPtr, size, cudaHostAllocMapped)) )
+        return false;
+
+    if( CUDA_FAILED(cudaHostGetDevicePointer(gpuPtr, *cpuPtr, 0)) )
+        return false;
+
+    memset(*cpuPtr, 0, size);
+    printf("[cuda]  cudaAllocMapped %zu bytes, CPU %p GPU %p\n", size, *cpuPtr, *gpuPtr);
+    return true;
+}
 
 
 gstPipeline::~gstPipeline()
@@ -39,6 +59,7 @@ gstPipeline::gstPipeline(std::string pipeline, uint32_t width, uint32_t height, 
     mWaitMutex = new QMutex();
     mRingMutex = new QMutex();
 
+    mLatestRGBA      = 0;
     mLatestRinbuffer = 0;
     mLatestRetrived  = false;
 
@@ -46,6 +67,7 @@ gstPipeline::gstPipeline(std::string pipeline, uint32_t width, uint32_t height, 
     {
         mRingbufferCPU[n] = NULL;
         mRingbufferGPU[n] = NULL;
+        mRGBA[n]          = NULL;
     }
 
     //1 init di gst
@@ -58,7 +80,8 @@ gstPipeline::gstPipeline(std::string pipeline, uint32_t width, uint32_t height, 
     mHeight = height;
     mDepth = depth;
     mSize = (width * height * mDepth) / 8;
-    mLaunchString = pipeline; //questo da rivedere in quanto superfluo
+    mLaunchString = pipeline;
+    printf("%s\n", mLaunchString.c_str());
 
     if(!init())
     {
@@ -70,6 +93,50 @@ gstPipeline::gstPipeline(std::string pipeline, uint32_t width, uint32_t height, 
     //printf("%swidth = %d\n", LOG_GST_PIPE_INFO, mWidth);
     //printf("%sheight = %d\n", LOG_GST_PIPE_INFO,mHeight);
     //printf("%sdepth = %d\n", LOG_GST_PIPE_INFO, mDepth);
+}
+
+bool gstPipeline::ConvertRGBA(void *input, void **output)
+{
+    if( !input || !output)
+        return false;
+
+    //check se l'array è allocato
+    if(!mRGBA[0])
+    {
+        for(uint32_t n=0; n < NUM_RINGBUFFERS; n++)
+        {
+            //alloca un array in GPU per la conversione RGBA
+            if(CUDA_FAILED(cudaMalloc(&mRGBA[n], mWidth * mHeight * sizeof(float4))))
+            {
+                printf(LOG_CUDA LOG_GST_PIPE_ERROR "fallito ad allocare la memoria per %ux%u RGBA texture\n", mWidth, mHeight);
+                return false;
+            }
+        }
+    }
+
+    /* conversione da NV12  a RGBAf (https://msdn.microsoft.com/en-us/library/windows/desktop/dd206750(v=vs.85).aspx#nv12)
+     * NV12 è un formato comunemente usato per macchine video e camere. Caratteristica principale
+     * è il fatto che le informazine del colore sono memorizzate in un formato minore rispetto all'intensità
+     * L'intensita (Y luma channel)  è memorizzata come 8 bit sample, la componente del colore invece(Cr e CB)
+     * come una sotto immagine di grandezza 2x2, per questo formato è definito come 4:2:0
+     * notazioni del formato YUV = A:B:C = Y luma U:crhoma Y: crhoma
+     * Surface origin : in YUV l'origine(0, 0) e nell'angolo in alto a sinistra
+     * stride         : la stride, o pitch, è la larghezza della superfice in bytes
+     * alignment      : allineamento dei dati nella memoria fisica, DWORD alignemetn, la grandezza è determinata dall'hadware
+     * Packet/planar  : come i dati vengoni organizzati, nel Packeet format le componenti Y / U / V sono memorizzate
+     *                  in un singolo array. Nel Planer format invece le tre componeti sono memorizzare in 3 piani differenti
+     *                  NV12 è un planar format (https://www.fourcc.org/pixel-format/yuv-nv12/)
+     *                  il codice di rifereminto FOURCC per NV12 0x3231564E
+     */
+     /*la conversion viene fatta in tempo reale sull'ultmo sample entrato nella pipeline*/
+    if(mDepth == 12)
+    {
+        if(CUDA_FAILED(cudaNV12ToRGBAf((uint8_t*)input, (float4*)mRGBA[mLatestRGBA], mWidth, mHeight)))
+            return false;
+    }
+    *output     = mRGBA[mLatestRGBA];
+    mLatestRGBA = (mLatestRGBA + 1 ) % NUM_RINGBUFFERS;
+    return true;
 }
 
 // onEOS
@@ -235,10 +302,11 @@ void gstPipeline::checkBuffer()
             if(!&mRingbufferCPU || !mRingbufferGPU || gstSize == 0)
                 printf("MALE MALE MALE \n");
 
-              cudaHostAlloc(&mRingbufferCPU[n], (size_t)gstSize, cudaHostAllocMapped);
-              cudaHostGetDevicePointer(&mRingbufferGPU[n], mRingbufferCPU[n], 0);
-              memset(mRingbufferCPU[n], 0, (size_t)gstSize);
-              printf(LOG_GST_PIPE_INFO"cudaAllocMapped %zu bytes, CPU %p GPU %p\n", (size_t)gstSize, mRingbufferCPU, mRingbufferGPU);
+            CUDA_FAILED(cudaHostAlloc(&mRingbufferCPU[n], (size_t)gstSize, cudaHostAllocMapped));
+            CUDA_FAILED(cudaHostGetDevicePointer(&mRingbufferGPU[n], mRingbufferCPU[n], 0));
+            memset(mRingbufferCPU[n], 0, (size_t)gstSize);
+
+            printf(LOG_GST_PIPE_INFO"cudaAllocMapped %zu bytes, CPU %p GPU %p\n", (size_t)gstSize, mRingbufferCPU, mRingbufferGPU);
         }
     }
 
@@ -294,6 +362,7 @@ bool gstPipeline::init()
     }
 
     mPipeline = gst_parse_launch(mLaunchString.c_str(), &err);
+
     if(err != NULL)
     {
         printf("%sFallito a fare il decoder della stringa\n", LOG_GST_PIPE_ERROR);

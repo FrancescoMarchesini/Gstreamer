@@ -47,6 +47,14 @@ public:
      bool Capture( void** cpu, void** cuda, unsigned long timeout=ULONG_MAX );
 
      /**
+      * @brief convertRGBA convertire il flusso video da NV12 a RGBA
+      * @param cpu  memoria cpu
+      * @param cuda memoria cuda
+      * @return
+      */
+     bool ConvertRGBA(void *input, void **ouput);
+
+     /**
       * @brief GetWidth grandezza dell'immagine
       * @return
       */
@@ -128,14 +136,16 @@ private:
      uint32_t        mDepth;        //quanti canali ha l'immagine
      uint32_t        mSize;         //grandezza in byte del buffer
 
+     static const uint32_t NUM_RINGBUFFERS = 16;        //grandezza del ring baffer è 16
+
+     void* mRingbufferCPU[NUM_RINGBUFFERS];             //buffer della cpu
+     void* mRingbufferGPU[NUM_RINGBUFFERS];             //buffer della GPU
+
+
      QWaitCondition* mWaitEvent;    //un thread dice ad un altro thread se una condizione è stata raggiunta
 
      QMutex* mWaitMutex;            //qmutex determina che un solo thread in un solo instante può accedere ad una risorsa/oggetto/codice
      QMutex* mRingMutex;
-
-     static const uint32_t NUM_RINGBUFFERS = 32;        //grandezza del ring baffer è 16
-     void* mRingbufferCPU[NUM_RINGBUFFERS];             //buffer della cpu
-     void* mRingbufferGPU[NUM_RINGBUFFERS];             //buffer della GPU
 
      uint32_t mLatestRGBA;                              //ultimo frame preso
      uint32_t mLatestRinbuffer;                         //utlimo frame preso del ring buffer
