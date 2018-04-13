@@ -38,24 +38,61 @@ public:
      void close();
 
      /**
-      * @brief Capture
-      * @param cpu
-      * @param cuda
-      * @param timeout
+      * @brief Capture cattura ring buffer di grandezza 20M ogni timeout
+      * @param cpu  puntatore alla memoria cpu
+      * @param cuda puntatore alla memoria cuda dove spostare i dati
+      * @param timeout  variabile temporale per il sample data
       * @return
       */
      bool Capture( void** cpu, void** cuda, unsigned long timeout=ULONG_MAX );
 
-
-     //--------------------------------------------------
+     /**
+      * @brief GetWidth grandezza dell'immagine
+      * @return
+      */
      inline uint32_t GetWidth() const	  { return mWidth; }
+
+     /**
+      * @brief GetHeight altezza dell'immagine
+      * @return
+      */
      inline uint32_t GetHeight() const	  { return mHeight; }
+
+     /**
+      * @brief GetPixelDepth il numero di bit per pixel, NVMM = 12,per ogni componente RGBA
+      * @return
+      */
      inline uint32_t GetPixelDepth() const { return mDepth; }
+
+     /**
+      * @brief GetSize grandezza del buffer = W x H x Depth / 8
+      * @return
+      */
      inline uint32_t GetSize() const		  { return mSize; }
 
 private:
+
+     /**
+      * @brief onEOS callback per fine dello stream
+      * @param sink  elemento gst di uscita dell'elemnto
+      * @param user_data gli elementi che si vuole analizzare
+      */
      static void onEOS(_GstAppSink* sink, void* user_data);
+
+     /**
+      * @brief onPreroll callback per immagazzinare i dati prima di mettore lo stato su play
+      * @param sink elemneto di uscita
+      * @param user_data oggetto sul quale agire
+      * @return
+      */
      static GstFlowReturn onPreroll(_GstAppSink* sink, void* user_data);
+
+     /**
+      * @brief onBuffer callback nel durante della ricezione dei chunck dello stream video
+      * @param sink elmento di uscita
+      * @param user_data oggetto sul quale agire
+      * @return
+      */
      static GstFlowReturn onBuffer(_GstAppSink* sink, void* user_data);
 
      /**
@@ -96,15 +133,15 @@ private:
      QMutex* mWaitMutex;            //qmutex determina che un solo thread in un solo instante può accedere ad una risorsa/oggetto/codice
      QMutex* mRingMutex;
 
-     static const uint32_t NUM_RINGBUFFERS = 16;        //grandezza del ring baffer è 16
-     void* mRingbufferCPU[NUM_RINGBUFFERS];
-     void* mRingbufferGPU[NUM_RINGBUFFERS];
+     static const uint32_t NUM_RINGBUFFERS = 32;        //grandezza del ring baffer è 16
+     void* mRingbufferCPU[NUM_RINGBUFFERS];             //buffer della cpu
+     void* mRingbufferGPU[NUM_RINGBUFFERS];             //buffer della GPU
 
-     uint32_t mLatestRGBA;
-     uint32_t mLatestRinbuffer;
-     bool     mLatestRetrived;
+     uint32_t mLatestRGBA;                              //ultimo frame preso
+     uint32_t mLatestRinbuffer;                         //utlimo frame preso del ring buffer
+     bool     mLatestRetrived;                          //condizione di blocco per i thread
 
-     void* mRGBA[NUM_RINGBUFFERS];
+     void* mRGBA[NUM_RINGBUFFERS];                      //vettore per la conversione
 };
 
 #endif

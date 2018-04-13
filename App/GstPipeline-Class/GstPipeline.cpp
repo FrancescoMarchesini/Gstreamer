@@ -17,6 +17,8 @@ gstPipeline::~gstPipeline()
     delete mBus;
     delete mAppsink;
     delete mPipeline;
+    delete mWaitEvent;
+    delete mWaitMutex;
 }
 
 gstPipeline::gstPipeline(std::string pipeline, uint32_t width, uint32_t height, uint32_t depth)
@@ -93,6 +95,7 @@ GstFlowReturn gstPipeline::onBuffer(_GstAppSink* sink, void* user_data)
     if(!user_data)
         return GST_FLOW_OK;
 
+    //necessita di instanziare l'oggetto per chiamre le callback
     gstPipeline* dec = (gstPipeline*)user_data;
 
     dec->checkBuffer();
@@ -104,15 +107,18 @@ bool gstPipeline::Capture(void **cpu, void **cuda, unsigned long timeout)
 {
     mWaitMutex->lock();
     const bool wait_result = mWaitEvent->wait(mWaitMutex, timeout);
+    printf(LOG_GST_PIPE_INFO"..........mWaitMutex\n");
     mWaitMutex->unlock();
 
     if(!wait_result)
         return false;
 
     mRingMutex->lock();
+    printf("\n");
     const uint32_t latest = mLatestRinbuffer;
     const bool retrived = mLatestRetrived;
     mLatestRetrived = true;
+    printf(LOG_GST_PIPE_INFO"..........mRingMutex\n");
     mRingMutex->unlock();
 
     if(retrived)
@@ -146,7 +152,7 @@ void gstPipeline::checkBuffer()
     /** 1
      * block wating per i il buffer .................
      * serve per estrarre sample dalla pipeline
-     * app_sink_pull_sample : questo metodo ferma finche un sample non è disponibile e quando si è iin EOS
+     * app_sink_pull_sample : questo metodo ferma finche un sample non è disponibile o quando si è in EOS
      * ritorna il sample solo quando lo stato di GST è in GST_PLAY
      * l'applicazione deve pullare sample in modo sufficente altrimenti si blocca tutto..
      * GstSample è un oggetto che contiente data, type, timming e altri metadati
@@ -215,9 +221,9 @@ void gstPipeline::checkBuffer()
     mWidth  = width;
     mHeight = height;
     mDepth  = (gstSize * 8) / (width * height);
-    mSize   =  gstSize;
+    mSize   = gstSize;
 
-    printf("%sla pipeline ha ricevuto %ix%i frame (%u bytes, %u bpp)\n", LOG_GST_PIPE_INFO, width, height, gstSize, mDepth);
+    printf("%sla pipeline ha ricevuto %ix%i frame (%u bytes, %u bite per pixel )\n", LOG_GST_PIPE_INFO, width, height, gstSize, mDepth);
 
     /* 6 qui tramite il puntatore all'immagine alloca la memoria della GPU o utilizzo i pixel */
     if(!mRingbufferCPU[0])
@@ -280,7 +286,7 @@ bool gstPipeline::init()
     //2 check degli errori
     GError* err = NULL;
 
-    //3 init della striga
+    //3 init della stringa
     if(!buildLaunchString())
     {
         printf("%sFallito a creare la stringa di lancio\n", LOG_GST_PIPE_ERROR);
